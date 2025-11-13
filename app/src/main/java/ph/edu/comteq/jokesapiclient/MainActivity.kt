@@ -4,8 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,11 +15,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
@@ -85,6 +90,10 @@ class MainActivity : ComponentActivity() {
 fun JokesScreen(viewModel: JokesViewModel, modifier: Modifier = Modifier){
     val uiState by viewModel.uiState.collectAsState()
 
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    var jokeToEdit by remember {mutableStateOf<Joke?>(null)}
+
     // Fetch jokes when the screen first loads
     LaunchedEffect(Unit) {
         viewModel.getJokes()
@@ -119,12 +128,71 @@ fun JokesScreen(viewModel: JokesViewModel, modifier: Modifier = Modifier){
                             modifier = Modifier.fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
-                            )
-                            {
-                                Text(text = joke.setup)
-                                Text(text = joke.punchline)
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ){
+                                Column(
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                                {
+                                    Text(text = joke.setup)
+                                    Text(text = joke.punchline)
+                                }
+                                IconButton(
+                                    onClick = {showDeleteDialog = true}
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete Joke",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {jokeToEdit = joke}
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Edit Joke"
+                                    )
+                                }
+                            }
+
+                            if (showDeleteDialog){
+                                AlertDialog(
+                                    onDismissRequest = { showDeleteDialog = false },
+                                    title = { Text(text = "Delete Joke") },
+                                    text = { Text(text = "Are you sure you want to delete this joke?") },
+                                    confirmButton = {
+                                        TextButton(
+                                            onClick = {
+                                                joke.id?.let { viewModel.deleteJoke(it) }
+                                                showDeleteDialog = false
+                                            }
+                                        ){
+                                            Text(text = "Delete", color = MaterialTheme.colorScheme.error)
+                                        }
+                                    },
+                                    dismissButton = {
+                                        TextButton(
+                                            onClick = { showDeleteDialog = false }
+                                        ) { Text(text = "Cancel") }
+                                    }
+                                )
+                            }
+
+
+                            jokeToEdit?.let {joke ->
+                                EditJokeDialog(
+                                    joke = joke,
+                                    onDismiss = { jokeToEdit = null },
+                                    onConfirm = { setup, punchline -> jokeToEdit = null
+                                        viewModel.updateJoke(joke.id!!, setup, punchline)
+                                        jokeToEdit = null
+                                    }
+                                )
                             }
                         }
                     }
@@ -145,6 +213,10 @@ fun JokesScreen(viewModel: JokesViewModel, modifier: Modifier = Modifier){
         }
     }
 }
+
+
+
+
 
 
 @Composable
@@ -187,6 +259,60 @@ fun AddJokeDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(text = "Cancel")
+            }
+        }
+    )
+}
+
+
+
+
+@Composable
+fun EditJokeDialog(
+    joke: Joke,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit
+) {
+    var setup by remember { mutableStateOf(joke.setup) }
+    var punchline by remember { mutableStateOf(joke.punchline) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Edit Joke") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = setup,
+                    onValueChange = { setup = it },
+                    label = { Text(text = "Setup") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp)
+                )
+                OutlinedTextField(
+                    value = punchline,
+                    onValueChange = { punchline = it },
+                    label = { Text(text = "Punchline") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (setup.isNotBlank() && punchline.isNotBlank()) {
+                        onConfirm(setup, punchline)
+                    }
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
     )
